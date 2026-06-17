@@ -9,15 +9,22 @@ class MaskHoldUntilStable:
                 "mask": ("MASK",),
                 "min_area": ("INT", {
                     "default": 500, "min": 1, "max": 500000, "step": 10,
-                    "tooltip": "Minimum pixel area to consider a frame stable. "
-                               "In peak mode this filters out noise; the largest frame above this is used.",
+                    "tooltip": "Minimum mask area for the START anchor. "
+                               "Raise this to wait for a more fully-revealed face before locking. "
+                               "In peak mode this is a noise floor; the largest frame above it is used.",
+                }),
+                "min_area_end": ("INT", {
+                    "default": 500, "min": 1, "max": 500000, "step": 10,
+                    "tooltip": "Minimum mask area for the END anchor. "
+                               "Keep this low so the end holds until the very last moment before the face disappears. "
+                               "Independent of min_area so start and end can be tuned separately.",
                 }),
                 "peak_mode": ("BOOLEAN", {
                     "default": False,
                     "label_on": "Peak (largest frame)",
                     "label_off": "First stable frame",
-                    "tooltip": "Off: lock to the first frame that crosses min_area. "
-                               "On: lock to the frame with the biggest mask in the whole batch.",
+                    "tooltip": "Off: lock start to the first frame that crosses min_area. "
+                               "On: lock start to the frame with the biggest mask in the whole batch.",
                 }),
                 "hold_start": ("BOOLEAN", {
                     "default": True,
@@ -39,7 +46,7 @@ class MaskHoldUntilStable:
     FUNCTION = "hold"
     CATEGORY = "enigmatic"
 
-    def hold(self, mask, min_area, peak_mode, hold_start, hold_end):
+    def hold(self, mask, min_area, min_area_end, peak_mode, hold_start, hold_end):
         if mask.ndim == 2:
             mask = mask.unsqueeze(0)
 
@@ -66,10 +73,10 @@ class MaskHoldUntilStable:
         if anchor_start is None:
             return (mask,)
 
-        # Find last stable frame (backward scan)
+        # Find last stable frame using independent end threshold (backward scan)
         anchor_end = None
         for i in range(B - 1, -1, -1):
-            if areas[i] >= min_area:
+            if areas[i] >= min_area_end:
                 anchor_end = i
                 break
 
