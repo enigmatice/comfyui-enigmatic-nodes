@@ -17,7 +17,7 @@ class MaskRemoveSmallRegions:
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("mask",)
     FUNCTION = "filter_regions"
-    CATEGORY = "masking"
+    CATEGORY = "enigmatic"
 
     def filter_regions(self, mask, min_area, threshold):
         if mask.ndim == 2:

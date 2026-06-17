@@ -419,7 +419,7 @@ def _process_single_frame(frame: torch.Tensor, settings_json: str) -> torch.Tens
 class NtscRsEffect:
     """Apply NTSC/VHS analog video effects to images using ntsc-rs."""
 
-    CATEGORY = "image/effects"
+    CATEGORY = "enigmatic"
     FUNCTION = "apply_effect"
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
