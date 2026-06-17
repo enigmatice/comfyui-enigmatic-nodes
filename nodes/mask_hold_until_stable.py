@@ -19,6 +19,18 @@ class MaskHoldUntilStable:
                     "tooltip": "Off: lock to the first frame that crosses min_area. "
                                "On: lock to the frame with the biggest mask in the whole batch.",
                 }),
+                "hold_start": ("BOOLEAN", {
+                    "default": True,
+                    "label_on": "Hold start",
+                    "label_off": "Start: pass through",
+                    "tooltip": "Backfill all frames before the anchor with the anchor mask.",
+                }),
+                "hold_end": ("BOOLEAN", {
+                    "default": True,
+                    "label_on": "Hold end",
+                    "label_off": "End: pass through",
+                    "tooltip": "Forward-fill all frames after the last stable frame with that frame's mask.",
+                }),
             }
         }
 
@@ -27,7 +39,7 @@ class MaskHoldUntilStable:
     FUNCTION = "hold"
     CATEGORY = "enigmatic"
 
-    def hold(self, mask, min_area, peak_mode):
+    def hold(self, mask, min_area, peak_mode, hold_start, hold_end):
         if mask.ndim == 2:
             mask = mask.unsqueeze(0)
 
@@ -64,11 +76,11 @@ class MaskHoldUntilStable:
         out = mask.clone()
 
         # Backfill beginning: copy anchor_start mask to all frames before it
-        if anchor_start > 0:
+        if hold_start and anchor_start > 0:
             out[:anchor_start] = mask[anchor_start].unsqueeze(0).expand(anchor_start, -1, -1)
 
         # Forward-fill end: copy anchor_end mask to all frames after it
-        if anchor_end is not None and anchor_end < B - 1:
+        if hold_end and anchor_end is not None and anchor_end < B - 1:
             tail = B - anchor_end - 1
             out[anchor_end + 1:] = mask[anchor_end].unsqueeze(0).expand(tail, -1, -1)
 
