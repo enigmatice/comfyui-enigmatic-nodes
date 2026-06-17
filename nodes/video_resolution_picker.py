@@ -7,8 +7,6 @@ ASPECT_RATIOS = {
     "9:16": (9, 16),
 }
 
-BASE_SIZES = ["320", "480", "512", "576", "640", "720", "768", "1080", "1440"]
-
 
 class VideoResolutionPicker:
     @classmethod
@@ -16,10 +14,13 @@ class VideoResolutionPicker:
         return {
             "required": {
                 "aspect_ratio": (list(ASPECT_RATIOS.keys()), {"default": "16:9"}),
-                "base_size": (BASE_SIZES, {"default": "720"}),
+                "longest_side": ("INT", {
+                    "default": 1280, "min": 64, "max": 8192, "step": 8,
+                    "tooltip": "The longer dimension. The shorter side is calculated automatically.",
+                }),
                 "multiple_of": ("INT", {
                     "default": 8, "min": 1, "max": 64, "step": 1,
-                    "tooltip": "Round dimensions to a multiple of this. Use 8 for most models, 16 for stricter ones.",
+                    "tooltip": "Round both dimensions to a multiple of this. Use 8 for most models, 16 for stricter ones.",
                 }),
             }
         }
@@ -29,19 +30,18 @@ class VideoResolutionPicker:
     FUNCTION = "pick"
     CATEGORY = "utils"
 
-    def pick(self, aspect_ratio, base_size, multiple_of):
+    def pick(self, aspect_ratio, longest_side, multiple_of):
         w_ratio, h_ratio = ASPECT_RATIOS[aspect_ratio]
-        size = int(base_size)
         m = max(1, multiple_of)
 
         if w_ratio >= h_ratio:
-            # landscape or square: base_size is the height (shorter side)
-            height = size
-            width = math.floor(size * w_ratio / h_ratio / m) * m
+            # landscape or square: longest side is width
+            width = longest_side
+            height = math.floor(longest_side * h_ratio / w_ratio / m) * m
         else:
-            # portrait: base_size is the width (shorter side)
-            width = size
-            height = math.floor(size * h_ratio / w_ratio / m) * m
+            # portrait: longest side is height
+            height = longest_side
+            width = math.floor(longest_side * w_ratio / h_ratio / m) * m
 
         label = f"{width} x {height}  ({aspect_ratio})"
         return (width, height, label)
