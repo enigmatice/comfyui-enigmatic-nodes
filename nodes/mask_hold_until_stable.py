@@ -10,13 +10,13 @@ class MaskHoldUntilStable:
                 "min_area": ("INT", {
                     "default": 500, "min": 1, "max": 500000, "step": 10,
                     "tooltip": "Minimum mask area for the START anchor. "
-                               "Raise this to wait for a more fully-revealed face before locking. "
+                               "Raise this to wait for a larger masked region before locking. "
                                "In peak mode this is a noise floor; the largest frame above it is used.",
                 }),
                 "min_area_end": ("INT", {
                     "default": 500, "min": 1, "max": 500000, "step": 10,
                     "tooltip": "Minimum mask area for the END anchor. "
-                               "Keep this low so the end holds until the very last moment before the face disappears. "
+                               "Keep this low to hold until the masked region has nearly disappeared. "
                                "Independent of min_area so start and end can be tuned separately.",
                 }),
                 "peak_mode": ("BOOLEAN", {
