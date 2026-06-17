@@ -1,7 +1,7 @@
 [project]
-name = "comfyui-mask-utils"
-version = "1.0.0"
-description = "ComfyUI custom node: remove small noise regions from alpha matte masks"
+name = "comfyui-enigmatic-nodes"
+version = "1.1.0"
+description = "ComfyUI custom nodes by enigmatice: mask utilities and analog video effects"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
@@ -9,12 +9,14 @@ dependencies = [
     "torch",
     "numpy",
     "scipy",
+    "Pillow",
+    "opencv-python",
 ]
 
 [project.urls]
-Repository = "https://github.com/enigmatice/comfyui-mask-utils"
+Repository = "https://github.com/enigmatice/comfyui-enigmatic-nodes"
 
 [tool.comfy]
 PublisherId = "enigmatice"
-DisplayName = "Mask Utils"
+DisplayName = "Enigmatic Nodes"
 Icon = ""
