@@ -9,8 +9,15 @@ class MaskHoldUntilStable:
                 "mask": ("MASK",),
                 "min_area": ("INT", {
                     "default": 500, "min": 1, "max": 500000, "step": 10,
-                    "tooltip": "Minimum pixel area that counts as a stable mask. "
-                               "Used for both the start and end of the batch.",
+                    "tooltip": "Minimum pixel area to consider a frame stable. "
+                               "In peak mode this filters out noise; the largest frame above this is used.",
+                }),
+                "peak_mode": ("BOOLEAN", {
+                    "default": False,
+                    "label_on": "Peak (largest frame)",
+                    "label_off": "First stable frame",
+                    "tooltip": "Off: lock to the first frame that crosses min_area. "
+                               "On: lock to the frame with the biggest mask in the whole batch.",
                 }),
             }
         }
@@ -20,27 +27,37 @@ class MaskHoldUntilStable:
     FUNCTION = "hold"
     CATEGORY = "enigmatic"
 
-    def hold(self, mask, min_area):
+    def hold(self, mask, min_area, peak_mode):
         if mask.ndim == 2:
             mask = mask.unsqueeze(0)
 
         B = mask.shape[0]
+        areas = [mask[i].sum().item() for i in range(B)]
 
-        # Find first stable frame (forward scan)
-        anchor_start = None
-        for i in range(B):
-            if mask[i].sum().item() >= min_area:
-                anchor_start = i
-                break
+        if peak_mode:
+            # Use the frame with the largest mask area (above min_area)
+            best_area = -1
+            anchor_start = None
+            for i, a in enumerate(areas):
+                if a >= min_area and a > best_area:
+                    best_area = a
+                    anchor_start = i
+        else:
+            # Use the first frame that crosses min_area
+            anchor_start = None
+            for i, a in enumerate(areas):
+                if a >= min_area:
+                    anchor_start = i
+                    break
 
-        # No stable frame at all — return unchanged
+        # No qualifying frame found — return unchanged
         if anchor_start is None:
             return (mask,)
 
         # Find last stable frame (backward scan)
         anchor_end = None
         for i in range(B - 1, -1, -1):
-            if mask[i].sum().item() >= min_area:
+            if areas[i] >= min_area:
                 anchor_end = i
                 break
 
