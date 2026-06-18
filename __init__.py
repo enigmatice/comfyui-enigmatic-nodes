@@ -1,5 +1,7 @@
 print("[comfyui-enigmatic-nodes] Loading...")
 
+WEB_DIRECTORY = "web"
+
 from .nodes.mask_remove_small_regions import (
     NODE_CLASS_MAPPINGS as _MASK_CLASSES,
     NODE_DISPLAY_NAME_MAPPINGS as _MASK_NAMES,
