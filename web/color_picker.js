@@ -2,8 +2,6 @@ import { app } from "/scripts/app.js";
 
 // ─── Themes ───────────────────────────────────────────────────────────────────
 
-// header = node title bar, body = node background,
-// groupColor = group band color in coordinated (nodes+group) mode.
 const THEMES = [
     // ── Muted / deep ─────────────────────────────────────────────────────────
     { name: "Ocean",    header: "#1e4d73", body: "#0d2035", groupColor: "#285f90" },
@@ -148,8 +146,10 @@ function showThemeDialog(nodes, group) {
     const hasGroup = !!group;
     if (!hasNodes && !hasGroup) return;
 
-    // Default mode: prefer "both" when both exist, otherwise whichever is present
-    let mode = (hasNodes && hasGroup) ? "both" : hasNodes ? "nodes" : "group";
+    // Default to "nodes" when nodes are selected so we don't accidentally recolor
+    // a group just because it happens to contain the selected nodes.
+    // The user can switch to "Nodes + Group" explicitly if they want both.
+    let mode = hasNodes ? "nodes" : "group";
 
     openDialog(dialog => {
         dialog.style.cssText =
@@ -163,7 +163,7 @@ function showThemeDialog(nodes, group) {
         titleEl.style.cssText = "font-weight:600;font-size:15px;color:#fff;margin-bottom:12px;";
         dialog.appendChild(titleEl);
 
-        // ── Mode picker (only shown when both nodes and group are selected) ──
+        // ── Mode picker (only shown when both nodes and group are present) ──
         let modeButtons = {};
         if (hasNodes && hasGroup) {
             const modeRow = document.createElement("div");
@@ -220,7 +220,6 @@ function showThemeDialog(nodes, group) {
             swatches.style.cssText = "display:flex;gap:2px;flex-shrink:0;";
 
             if (mode !== "group") {
-                // Mini node: header stripe + body
                 const nodePreview = document.createElement("div");
                 nodePreview.style.cssText = "width:18px;height:30px;border-radius:3px;overflow:hidden;border:1px solid #3a3a5a;display:flex;flex-direction:column;";
                 const hdrEl  = document.createElement("div"); hdrEl.style.cssText  = `background:${theme.header};height:9px;`;
@@ -230,7 +229,6 @@ function showThemeDialog(nodes, group) {
             }
 
             if (mode !== "nodes") {
-                // Group swatch
                 const gColor = mode === "both" ? theme.groupColor : theme.header;
                 const groupSwatch = document.createElement("div");
                 groupSwatch.style.cssText = `width:10px;height:30px;border-radius:3px;background:${gColor};border:1px solid #3a3a5a;flex-shrink:0;`;
@@ -298,19 +296,11 @@ function showThemeDialog(nodes, group) {
 
 // ─── Alignment ────────────────────────────────────────────────────────────────
 
-// Works on any mix of nodes and groups — both expose .pos and .size
+// Works on any mix of nodes and groups — both expose .pos and .size via getters/setters.
 function alignItems(mode, items) {
     if (!items || items.length < 2) return;
 
-    // Groups back their pos by Float32Array; mutate in place rather than reassign.
-    const setPos = (item, x, y) => {
-        if (Array.isArray(item.pos)) {
-            item.pos = [x, y];          // nodes: full reassignment for Vue reactivity
-        } else {
-            item.pos[0] = x;            // groups: Float32Array subarray, mutate directly
-            item.pos[1] = y;
-        }
-    };
+    const setPos = (item, x, y) => { item.pos = [x, y]; };
 
     switch (mode) {
         case "top": {
@@ -347,6 +337,28 @@ function alignItems(mode, items) {
     redraw();
 }
 
+// ─── Selection helpers ────────────────────────────────────────────────────────
+
+function getSelNodes() {
+    const fromCanvas = Object.values(app.canvas?.selected_nodes ?? {});
+    if (fromCanvas.length > 0) return fromCanvas;
+    return (app.graph?._nodes ?? []).filter(n => n.is_selected);
+}
+
+// Returns all currently selected groups.
+// Prefers selectedItems (supports multi-group rubber-band selection in newer LiteGraph),
+// falls back to the single selected_group for backward compat with direct clicks.
+function getSelGroups() {
+    const LGraphGroup = window.LiteGraph?.LGraphGroup;
+    const items = app.canvas?.selectedItems;
+    if (items && LGraphGroup) {
+        const groups = [...items].filter(i => i instanceof LGraphGroup);
+        if (groups.length > 0) return groups;
+    }
+    const g = app.canvas?.selected_group;
+    return g ? [g] : [];
+}
+
 // ─── Floating toolbar ─────────────────────────────────────────────────────────
 
 let toolbar        = null;
@@ -354,15 +366,8 @@ let tbColorDot     = null;
 let tbAlignSection = null;
 let tbSep          = null;
 // Snapshots captured at mousedown so they survive focus shifts
-let snapNodes = [];
-let snapGroup = null;
-
-function getSelNodes() {
-    const fromCanvas = Object.values(app.canvas?.selected_nodes ?? {});
-    if (fromCanvas.length > 0) return fromCanvas;
-    return (app.graph?._nodes ?? []).filter(n => n.is_selected);
-}
-function getSelGroup() { return app.canvas?.selected_group ?? null; }
+let snapNodes  = [];
+let snapGroups = [];
 
 function tbBtn(label, title, onClick) {
     const btn = document.createElement("button");
@@ -373,7 +378,6 @@ function tbBtn(label, title, onClick) {
         "white-space:nowrap;transition:background 0.12s,color 0.12s;";
     btn.addEventListener("mouseenter", () => { btn.style.background="#2d2d4a"; btn.style.color="#fff"; });
     btn.addEventListener("mouseleave", () => { btn.style.background="transparent"; btn.style.color="#bbb"; });
-    // stopPropagation only — no preventDefault, which can suppress click events
     btn.addEventListener("mousedown", e => e.stopPropagation());
     btn.addEventListener("click",     e => { e.stopPropagation(); onClick(); });
     return btn;
@@ -399,9 +403,10 @@ function buildToolbar() {
     // before any focus change can clear it on the canvas side.
     toolbar.addEventListener("mousedown", e => {
         e.stopPropagation();
-        const fresh = getSelNodes();
-        if (fresh.length > 0) snapNodes = [...fresh];
-        snapGroup = getSelGroup();
+        const freshNodes  = getSelNodes();
+        const freshGroups = getSelGroups();
+        if (freshNodes.length  > 0) snapNodes  = [...freshNodes];
+        if (freshGroups.length > 0) snapGroups = [...freshGroups];
     }, true);
 
     // ── Color button ──
@@ -421,7 +426,11 @@ function buildToolbar() {
     colorBtn.addEventListener("mousedown", e => e.stopPropagation());
     colorBtn.addEventListener("click", e => {
         e.stopPropagation();
-        showThemeDialog(snapNodes.length > 0 ? snapNodes : getSelNodes(), getSelGroup());
+        const nodes  = snapNodes.length  > 0 ? snapNodes  : getSelNodes();
+        const groups = snapGroups.length > 0 ? snapGroups : getSelGroups();
+        // Pass only the first group to the theme dialog — coloring multiple groups at once
+        // isn't needed here since each group has a single color field.
+        showThemeDialog(nodes, groups[0] ?? null);
     });
     toolbar.appendChild(colorBtn);
 
@@ -444,10 +453,9 @@ function buildToolbar() {
         if (def === null) { tbAlignSection.appendChild(tbSepEl()); return; }
         const [label, title, mode] = def;
         tbAlignSection.appendChild(tbBtn(label, title, () => {
-            const nodes = snapNodes.length > 0 ? snapNodes : getSelNodes();
-            const group = snapGroup ?? getSelGroup();
-            const items = [...nodes, ...(group ? [group] : [])];
-            alignItems(mode, items);
+            const nodes  = snapNodes.length  > 0 ? snapNodes  : getSelNodes();
+            const groups = snapGroups.length > 0 ? snapGroups : getSelGroups();
+            alignItems(mode, [...nodes, ...groups]);
         }));
     });
 
@@ -457,16 +465,16 @@ function buildToolbar() {
 
 function refreshToolbar() {
     if (!toolbar) return;
-    const nodes = getSelNodes();
-    const group  = getSelGroup();
+    const nodes  = getSelNodes();
+    const groups = getSelGroups();
 
     // Keep snapshots current while nothing is being clicked
-    if (nodes.length > 0) snapNodes = [...nodes];
-    else if (!group)       snapNodes = [];
-    snapGroup = group;
+    if (nodes.length  > 0) snapNodes  = [...nodes];
+    else if (groups.length === 0) snapNodes = [];
+    snapGroups = [...groups];
 
-    const hasAny    = nodes.length > 0 || !!group;
-    const alignable = nodes.length + (group ? 1 : 0);
+    const hasAny    = nodes.length > 0 || groups.length > 0;
+    const alignable = nodes.length + groups.length;
     const showAlign = alignable >= 2;
 
     toolbar.style.display              = hasAny    ? "flex"  : "none";
@@ -476,7 +484,7 @@ function refreshToolbar() {
     if (tbColorDot) {
         tbColorDot.style.background = nodes.length > 0
             ? toHex(nodes[0].color ?? "#353550")
-            : group ? toHex(group.color ?? "#335577") : "#555";
+            : groups.length > 0 ? toHex(groups[0].color ?? "#335577") : "#555";
     }
 }
 
